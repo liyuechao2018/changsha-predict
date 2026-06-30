@@ -1,0 +1,14 @@
+[project]
+name = "changsha-admission-predictor"
+version = "0.1.0"
+description = "长沙中考录取预测系统"
+requires-python = ">=3.9"
+dependencies = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]

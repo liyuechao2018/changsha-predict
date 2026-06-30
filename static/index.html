@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>长沙中考录取预测</title>
+    <link rel="stylesheet" href="/predict/static/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="predictor">
+        <div class="intro">
+          <p class="eyebrow">长沙中考录取预测</p>
+          <h1>输入成绩，查看冲稳保学校</h1>
+        </div>
+
+        <form id="predictionForm" class="form">
+          <label>
+            <span>中考总分</span>
+            <input id="score" name="score" type="number" min="1" max="700" step="1" required placeholder="例如 636" />
+          </label>
+          <label>
+            <span>已有位次（可选）</span>
+            <input id="rank" name="rank" type="number" min="1" step="1" placeholder="有两分一段位次时填写" />
+          </label>
+          <label>
+            <span>综合素质</span>
+            <select id="qualityLevel" name="qualityLevel">
+              <option value="5A">5A</option>
+              <option value="4A1B">4A1B</option>
+              <option value="3A2B">3A2B</option>
+              <option value="其他">其他</option>
+            </select>
+          </label>
+          <button type="submit">开始预测</button>
+        </form>
+      </section>
+
+      <section id="result" class="result hidden"></section>
+
+      <footer class="footer">
+        预测结果仅供志愿填报参考，不构成录取承诺；实际录取以长沙市教育局最终公布为准。
+      </footer>
+    </main>
+
+    <script src="/predict/static/app.js"></script>
+  </body>
+</html>
