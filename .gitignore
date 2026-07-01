@@ -15,3 +15,9 @@ logs/*.log.*
 .env
 *.db-shm
 *.db-wal
+
+backups/
+logs/*.tar.gz
+data_*.bak/
+static_*.bak/
+1/
