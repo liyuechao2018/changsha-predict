@@ -13,6 +13,7 @@ logs/*.log.*
 *.log
 
 .env
+data/*.db
 *.db-shm
 *.db-wal
 
