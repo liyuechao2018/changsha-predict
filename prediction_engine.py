@@ -157,10 +157,49 @@ class PredictionService:
                 }
             )
 
+        items.extend(self._build_new_school_items(structure_changes, student_rank, year))
         return sorted(
             items,
             key=lambda item: (item["adjustedAdmissionRank"], item["admissionRank"], item["schoolId"]),
         )
+
+    def _build_new_school_items(
+        self,
+        structure_changes: list[sqlite3.Row],
+        student_rank: int,
+        year: int,
+    ) -> list[dict]:
+        new_schools = []
+        for index, change in enumerate(structure_changes, start=1):
+            if change["change_type"] != "new_school":
+                continue
+            estimated_rank = int(change["impact_full_rank"])
+            gap = student_rank - estimated_rank
+            new_schools.append(
+                {
+                    "schoolId": -index,
+                    "schoolName": change["school_name"],
+                    "category": "",
+                    "probability": 0,
+                    "admissionScore": None,
+                    "admissionRank": estimated_rank,
+                    "adjustedAdmissionRank": estimated_rank,
+                    "structureAdjustment": 0,
+                    "structureAdjustmentItems": [],
+                    "rankGap": gap,
+                    "enrollmentPlan": int(change["effective_seats"]),
+                    "plannedSeats": int(change["planned_seats"]),
+                    "tier": self._estimate_tier(estimated_rank),
+                    "admissionBatch": change["admission_batch"],
+                    "stars": 0,
+                    "reason": "",
+                    "referenceYear": 2026,
+                    "isNewSchool": True,
+                    "benchmark": change["benchmark"],
+                    "note": change["note"],
+                }
+            )
+        return new_schools
 
     def _recommend_by_rank_sequence(self, school_items: list[dict], student_rank: int) -> tuple[dict[str, list[dict]], dict]:
         if not school_items:
@@ -325,11 +364,27 @@ class PredictionService:
         relation = f"靠后 {gap} 名" if gap > 0 else f"领先 {abs(gap)} 名"
         if gap == 0:
             relation = "基本持平"
+        if year == 2026 and school_rank == adjusted_rank and adjustment == 0:
+            base_text = f"你的位次约 {student_rank}，该校2026预估参考位次约 {adjusted_rank}，当前{relation}"
+            if category == "reach":
+                return f"按录取位次序列看，{school_name}位于你的落位学校上方；{base_text}，作为冲刺参考。"
+            if category == "target":
+                return f"按录取位次序列看，{school_name}接近你的落位区间；{base_text}，作为稳妥参考。"
+            return f"按录取位次序列看，{school_name}位于落位区间下方；{base_text}，作为保底参考。"
         if category == "reach":
             return f"按录取位次序列看，{school_name}位于你的落位学校上方；你的位次约 {student_rank}，{year} 年该校录取位次约 {school_rank}{adjustment_text}，当前{relation}，作为冲刺参考。"
         if category == "target":
             return f"按录取位次序列看，{school_name}接近你的落位区间；你的位次约 {student_rank}，{year} 年该校录取位次约 {school_rank}{adjustment_text}，当前{relation}，作为稳妥参考。"
         return f"按录取位次序列看，{school_name}位于落位区间下方；你的位次约 {student_rank}，{year} 年该校录取位次约 {school_rank}{adjustment_text}，当前{relation}，作为保底参考。"
+
+    def _estimate_tier(self, rank: int) -> str:
+        if rank <= 5000:
+            return "第一梯队"
+        if rank <= 13000:
+            return "第二梯队"
+        if rank <= 22000:
+            return "第三梯队"
+        return "第四梯队"
 
     def _category_label(self, category: str) -> str:
         return {"reach": "冲", "target": "稳", "safety": "保"}[category]

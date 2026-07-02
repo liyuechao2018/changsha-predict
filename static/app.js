@@ -81,6 +81,9 @@ function renderGroup(key, schools) {
 }
 
 function renderSchool(school) {
+  const scoreLabel = school.isNewSchool ? "2026预估线" : "2025分数线";
+  const rankLabel = school.isNewSchool ? "2026预估位次" : "2025位次";
+  const planLabel = school.isNewSchool ? "首年预估学位" : "招生计划";
   return `
     <article class="school-card">
       <header>
@@ -92,10 +95,12 @@ function renderSchool(school) {
       </header>
       <div class="stars">${"★".repeat(school.stars)}${"☆".repeat(5 - school.stars)}</div>
       <dl>
-        <div><dt>2025分数线</dt><dd>${school.admissionScore}</dd></div>
-        <div><dt>2025位次</dt><dd>${school.admissionRank.toLocaleString()}</dd></div>
+        <div><dt>${scoreLabel}</dt><dd>${formatValue(school.admissionScore)}</dd></div>
+        <div><dt>${rankLabel}</dt><dd>${school.admissionRank.toLocaleString()}</dd></div>
         <div><dt>2026参考</dt><dd>${school.adjustedAdmissionRank.toLocaleString()}</dd></div>
+        <div><dt>${planLabel}</dt><dd>${formatValue(school.enrollmentPlan)}</dd></div>
         <div><dt>位次差</dt><dd>${formatGap(school.rankGap)}</dd></div>
+        <div><dt>对标依据</dt><dd>${formatValue(school.benchmark || school.tier)}</dd></div>
       </dl>
       ${renderAdjustment(school)}
       <p>${escapeHtml(school.reason)}</p>
@@ -116,6 +121,12 @@ function formatGap(gap) {
 
 function batchLabel(batch) {
   return batch === "first" ? "第一批次" : "第二批次";
+}
+
+function formatValue(value) {
+  if (value === null || value === undefined || value === "") return "待公布";
+  if (typeof value === "number") return value.toLocaleString();
+  return escapeHtml(value);
 }
 
 function escapeHtml(value) {

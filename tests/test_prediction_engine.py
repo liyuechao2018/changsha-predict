@@ -99,6 +99,53 @@ class PredictionSequenceTests(unittest.TestCase):
         ]
         self.assertEqual(low_score_schools, high_score_schools)
 
+    def test_changjun_new_campus_uses_half_seat_release(self) -> None:
+        result = self.service.predict(
+            PredictionRequest(year=2026, score=0, quality_level="5A", rank=2600)
+        )
+
+        schools = {
+            school["schoolName"]: school
+            for group in result["groups"].values()
+            for school in group
+            if school.get("isNewSchool")
+        }
+
+        self.assertIn("长郡中学新校区", schools)
+        self.assertEqual(schools["长郡中学新校区"]["enrollmentPlan"], 500)
+        self.assertIsNone(schools["长郡中学新校区"]["admissionScore"])
+
+    def test_nanya_east_campus_uses_half_seat_release(self) -> None:
+        result = self.service.predict(
+            PredictionRequest(year=2026, score=0, quality_level="5A", rank=6500)
+        )
+
+        schools = {
+            school["schoolName"]: school
+            for group in result["groups"].values()
+            for school in group
+            if school.get("isNewSchool")
+        }
+
+        self.assertIn("南雅中学东校区", schools)
+        self.assertEqual(schools["南雅中学东校区"]["enrollmentPlan"], 350)
+        self.assertEqual(schools["南雅中学东校区"]["adjustedAdmissionRank"], 6500)
+
+    def test_changjun_convention_center_uses_around_10000_rank(self) -> None:
+        result = self.service.predict(
+            PredictionRequest(year=2026, score=0, quality_level="5A", rank=10000)
+        )
+
+        schools = {
+            school["schoolName"]: school
+            for group in result["groups"].values()
+            for school in group
+        }
+
+        self.assertIn("长郡会展中学", schools)
+        self.assertEqual(schools["长郡会展中学"]["enrollmentPlan"], 500)
+        self.assertEqual(schools["长郡会展中学"]["adjustedAdmissionRank"], 10000)
+
     def assert_group_counts(self, result: dict, expected: dict[str, int]) -> None:
         for group_name, count in expected.items():
             self.assertEqual(len(result["groups"][group_name]), count)
@@ -125,11 +172,13 @@ class PredictionSequenceTests(unittest.TestCase):
             "structureAdjustmentItems": [],
             "rankGap": 3500 - rank,
             "enrollmentPlan": None,
+            "plannedSeats": None,
             "tier": "测试",
             "admissionBatch": "first",
             "stars": 0,
             "reason": "",
             "referenceYear": 2025,
+            "isNewSchool": False,
         }
 
 

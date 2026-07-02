@@ -62,43 +62,43 @@ ADMISSIONS_2025 = [
 
 STRUCTURE_CHANGES_2026 = [
     {
-        "school_name": "长郡奥体城校区",
+        "school_name": "长郡中学新校区",
         "change_type": "new_school",
         "admission_batch": "first",
         "planned_seats": 1000,
-        "effective_seats": 850,
-        "benchmark": "雅礼新、师大附中新、市一中新",
+        "effective_seats": 500,
+        "benchmark": "雅礼新校区",
         "impact_start_rank": 1500,
-        "impact_full_rank": 3500,
-        "impact_end_rank": 12000,
+        "impact_full_rank": 2600,
+        "impact_end_rank": 9000,
         "heat_factor": 0.95,
-        "note": "第一批次招生，对标雅礼新、师大附中新、市一中新，首年按85%释放学位估算。",
+        "note": "第一批次招生，对标雅礼新校区；规划约1000个年级学位，首年暂按50%即500个有效学位估算。",
     },
     {
         "school_name": "南雅中学东校区",
         "change_type": "new_school",
         "admission_batch": "first",
         "planned_seats": 700,
-        "effective_seats": 595,
-        "benchmark": "略低于南雅，接近南雅",
-        "impact_start_rank": 3000,
+        "effective_seats": 350,
+        "benchmark": "低于南雅，接近第一批次腰部学校",
+        "impact_start_rank": 3600,
         "impact_full_rank": 6500,
         "impact_end_rank": 13000,
         "heat_factor": 0.85,
-        "note": "第一批次招生，预计比南雅略低但差距不大，首年按85%释放学位估算。",
+        "note": "第一批次招生，预计低于南雅一段但仍处于优质第一批次区间；规划约700个年级学位，首年暂按50%即350个有效学位估算。",
     },
     {
         "school_name": "长郡会展中学",
         "change_type": "new_school",
         "admission_batch": "second",
         "planned_seats": 1000,
-        "effective_seats": 850,
-        "benchmark": "第二批次强势公办高中",
+        "effective_seats": 500,
+        "benchmark": "约10000名附近的第二批次强势公办高中",
         "impact_start_rank": 6500,
-        "impact_full_rank": 11000,
-        "impact_end_rank": 28000,
+        "impact_full_rank": 10000,
+        "impact_end_rank": 22000,
         "heat_factor": 0.85,
-        "note": "第二批次招生，不直接修正第一批次学校；主要承接第一批滑档及第二批高分段学生。",
+        "note": "第二批次招生，位置与批次属性更接近强势第二批学校，暂按约10000名附近落位；规划约1000个年级学位，首年暂按50%即500个有效学位估算。",
     },
     {
         "school_name": "雅礼实验中学",
@@ -158,7 +158,7 @@ STRUCTURE_CHANGES_2026 = [
 FIRST_BATCH_SCHOOLS = {
     "长郡",
     "长郡中学",
-    "长郡奥体城校区",
+    "长郡中学新校区",
     "雅礼",
     "雅礼新",
     "师大附中",
@@ -271,6 +271,15 @@ def create_schema(conn: sqlite3.Connection) -> None:
 
 def seed_defaults(conn: sqlite3.Connection) -> None:
     ensure_schema(conn)
+    conn.execute(
+        """
+        UPDATE structure_changes
+        SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+        WHERE year = 2026
+          AND school_name = '长郡奥体城校区'
+          AND change_type = 'new_school'
+        """
+    )
     for name, score, rank_without_quota, rank_with_quota in ADMISSIONS_2025:
         tier = estimate_tier(rank_without_quota)
         admission_batch = estimate_batch(name)
