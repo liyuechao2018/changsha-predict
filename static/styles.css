@@ -19,6 +19,19 @@ body {
   padding: 32px 0 56px;
 }
 
+.blessing {
+  margin-bottom: 16px;
+  padding: 14px 18px;
+  border-radius: 8px;
+  background: #165f73;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+  box-shadow: 0 10px 24px rgba(22, 95, 115, 0.16);
+}
+
 .predictor {
   display: grid;
   grid-template-columns: minmax(220px, 0.85fr) minmax(320px, 1.15fr);
@@ -42,6 +55,29 @@ h1 {
   font-size: clamp(30px, 5vw, 52px);
   line-height: 1.08;
   letter-spacing: 0;
+}
+
+.disclaimer {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid #ead3bd;
+  border-left: 4px solid #b95b42;
+  border-radius: 8px;
+  background: #fff8f1;
+  color: #5e4638;
+}
+
+.disclaimer strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #8f3f2d;
+  font-size: 15px;
+}
+
+.disclaimer p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 .form {
@@ -269,5 +305,10 @@ dd {
   .page {
     width: min(100% - 20px, 1120px);
     padding-top: 16px;
+  }
+
+  .blessing {
+    padding: 12px 14px;
+    font-size: 16px;
   }
 }

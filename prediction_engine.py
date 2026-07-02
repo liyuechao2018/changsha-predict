@@ -19,66 +19,24 @@ class PredictionService:
         self.db_path = db_path
 
     def predict(self, request: PredictionRequest) -> dict:
-        if request.score <= 0:
-            raise ValueError("分数必须大于 0。")
+        if request.rank is None or request.rank <= 0:
+            raise ValueError("请填写有效位次。")
 
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             config = self._get_year_config(conn, request.year)
-            rule = self._get_rule(conn, request.year)
-            rank, rank_source = self._resolve_rank(conn, request, config["admission_data_year"])
+            rank = request.rank
+            rank_source = "用户填写位次"
             rows = self._get_admissions(conn, config["admission_data_year"])
             structure_changes = self._get_structure_changes(conn, request.year)
 
-        groups = {"reach": [], "target": [], "safety": []}
-        for row in rows:
-            original_rank = int(row["rank_without_quota"])
-            adjustment, adjustment_items = self._structure_adjustment(
-                original_rank,
-                row["admission_batch"],
-                structure_changes,
-            )
-            adjusted_rank = original_rank + adjustment
-            gap = rank - adjusted_rank
-            category = self._classify_gap(gap, rule)
-            if category is None:
-                continue
-            probability = self._probability(category, gap, rule)
-            groups[category].append(
-                {
-                    "schoolId": row["school_id"],
-                    "schoolName": row["school_name"],
-                    "category": self._category_label(category),
-                    "probability": probability,
-                    "admissionScore": row["admission_score"],
-                    "admissionRank": original_rank,
-                    "adjustedAdmissionRank": adjusted_rank,
-                    "structureAdjustment": adjustment,
-                    "structureAdjustmentItems": adjustment_items,
-                    "rankGap": gap,
-                    "enrollmentPlan": row["enrollment_plan"],
-                    "tier": row["tier"],
-                    "admissionBatch": row["admission_batch"],
-                    "stars": self._stars(probability),
-                    "reason": self._reason(
-                        category,
-                        rank,
-                        row["school_name"],
-                        original_rank,
-                        adjusted_rank,
-                        gap,
-                        adjustment,
-                        config["admission_data_year"],
-                    ),
-                }
-            )
-
-        groups["reach"].sort(key=lambda item: abs(item["rankGap"]))
-        groups["target"].sort(key=lambda item: abs(item["rankGap"]))
-        groups["safety"].sort(key=lambda item: item["rankGap"], reverse=True)
-
-        limit = int(rule["max_items_per_group"])
-        limited_groups = {key: value[:limit] for key, value in groups.items()}
+        school_items = self._build_school_items(
+            rows,
+            rank,
+            structure_changes,
+            config["admission_data_year"],
+        )
+        limited_groups, landing_school = self._recommend_by_rank_sequence(school_items, rank)
         return {
             "student": {
                 "year": request.year,
@@ -88,11 +46,9 @@ class PredictionService:
                 "rankSource": rank_source,
                 "summary": self._summary(limited_groups),
             },
+            "landingSchool": landing_school,
             "rule": {
-                "name": rule["name"],
-                "reach": f"+{rule['reach_min_gap']} 到 +{rule['reach_max_gap']} 名",
-                "target": f"{rule['target_min_gap']} 到 {rule['target_max_gap']} 名",
-                "safety": f"小于等于 {rule['safety_max_gap']} 名",
+                "name": "排序邻域切片模型",
             },
             "structureChanges": self._summarize_structure_changes(structure_changes),
             "groups": limited_groups,
@@ -103,70 +59,6 @@ class PredictionService:
         if row is None:
             raise ValueError(f"未找到 {year} 年配置。")
         return row
-
-    def _get_rule(self, conn: sqlite3.Connection, year: int) -> sqlite3.Row:
-        row = conn.execute(
-            """
-            SELECT * FROM prediction_rules
-            WHERE is_active = 1 AND (year = ? OR year IS NULL)
-            ORDER BY year DESC
-            LIMIT 1
-            """,
-            (year,),
-        ).fetchone()
-        if row is None:
-            raise ValueError(f"未找到 {year} 年预测规则。")
-        return row
-
-    def _resolve_rank(self, conn: sqlite3.Connection, request: PredictionRequest, reference_year: int) -> tuple[int, str]:
-        if request.rank is not None:
-            return request.rank, "用户填写位次"
-
-        official = conn.execute(
-            "SELECT cumulative_count FROM score_rankings WHERE year = ? AND score = ?",
-            (request.year, request.score),
-        ).fetchone()
-        if official is not None:
-            return int(official["cumulative_count"]), "当年两分一段表"
-
-        estimated = self._estimate_rank_from_reference(conn, request.score, reference_year)
-        return estimated, f"根据 {reference_year} 年录取数据估算"
-
-    def _estimate_rank_from_reference(self, conn: sqlite3.Connection, score: float, reference_year: int) -> int:
-        points = conn.execute(
-            """
-            SELECT admission_score, rank_without_quota
-            FROM admission_history
-            WHERE year = ?
-            ORDER BY admission_score DESC, rank_without_quota ASC
-            """,
-            (reference_year,),
-        ).fetchall()
-        if not points:
-            raise ValueError("没有可用于估算位次的参考数据。")
-
-        compact: list[tuple[float, int]] = []
-        seen = set()
-        for point in points:
-            score_value = float(point["admission_score"])
-            if score_value in seen:
-                continue
-            compact.append((score_value, int(point["rank_without_quota"])))
-            seen.add(score_value)
-
-        if score >= compact[0][0]:
-            return compact[0][1]
-        if score <= compact[-1][0]:
-            return compact[-1][1]
-
-        for left, right in zip(compact, compact[1:]):
-            high_score, high_rank = left
-            low_score, low_rank = right
-            if high_score >= score >= low_score:
-                ratio = (high_score - score) / (high_score - low_score)
-                return round(high_rank + ratio * (low_rank - high_rank))
-
-        return compact[-1][1]
 
     def _get_admissions(self, conn: sqlite3.Connection, year: int) -> list[sqlite3.Row]:
         return conn.execute(
@@ -227,6 +119,164 @@ class PredictionService:
             )
         return total, items
 
+    def _build_school_items(
+        self,
+        rows: list[sqlite3.Row],
+        student_rank: int,
+        structure_changes: list[sqlite3.Row],
+        year: int,
+    ) -> list[dict]:
+        items = []
+        for row in rows:
+            original_rank = int(row["rank_without_quota"])
+            adjustment, adjustment_items = self._structure_adjustment(
+                original_rank,
+                row["admission_batch"],
+                structure_changes,
+            )
+            adjusted_rank = original_rank + adjustment
+            gap = student_rank - adjusted_rank
+            items.append(
+                {
+                    "schoolId": row["school_id"],
+                    "schoolName": row["school_name"],
+                    "category": "",
+                    "probability": 0,
+                    "admissionScore": row["admission_score"],
+                    "admissionRank": original_rank,
+                    "adjustedAdmissionRank": adjusted_rank,
+                    "structureAdjustment": adjustment,
+                    "structureAdjustmentItems": adjustment_items,
+                    "rankGap": gap,
+                    "enrollmentPlan": row["enrollment_plan"],
+                    "tier": row["tier"],
+                    "admissionBatch": row["admission_batch"],
+                    "stars": 0,
+                    "reason": "",
+                    "referenceYear": year,
+                }
+            )
+
+        return sorted(
+            items,
+            key=lambda item: (item["adjustedAdmissionRank"], item["admissionRank"], item["schoolId"]),
+        )
+
+    def _recommend_by_rank_sequence(self, school_items: list[dict], student_rank: int) -> tuple[dict[str, list[dict]], dict]:
+        if not school_items:
+            return {"reach": [], "target": [], "safety": []}, {}
+
+        nearest_index = min(
+            range(len(school_items)),
+            key=lambda index: (
+                abs(student_rank - school_items[index]["adjustedAdmissionRank"]),
+                school_items[index]["adjustedAdmissionRank"],
+            ),
+        )
+
+        if student_rank <= 2000:
+            return self._recommend_for_top_rank(school_items, student_rank, nearest_index)
+
+        total = min(10, len(school_items))
+        counts = self._group_counts(total)
+        reach_count = counts["reach"]
+        target_count = counts["target"]
+        safety_count = counts["safety"]
+
+        # Normal case: anchor has three stronger schools before it, so it starts target.
+        # Edges are clamped into a contiguous, duplicate-free window and then sliced.
+        window_start = nearest_index - reach_count
+        window_start = min(max(window_start, 0), len(school_items) - total)
+        window = school_items[window_start : window_start + total]
+        selected = {
+            "reach": window[:reach_count],
+            "target": window[reach_count : reach_count + target_count],
+            "safety": window[reach_count + target_count : reach_count + target_count + safety_count],
+        }
+
+        for category, schools in selected.items():
+            for school in schools:
+                school["category"] = self._category_label(category)
+                school["probability"] = self._sequence_probability(category, school["rankGap"])
+                school["stars"] = self._stars(school["probability"])
+                school["reason"] = self._sequence_reason(
+                    category,
+                    student_rank,
+                    school["schoolName"],
+                    school["admissionRank"],
+                    school["adjustedAdmissionRank"],
+                    school["rankGap"],
+                    school["structureAdjustment"],
+                    school["referenceYear"],
+                )
+
+        landing_school = {
+            "schoolId": school_items[nearest_index]["schoolId"],
+            "schoolName": school_items[nearest_index]["schoolName"],
+            "adjustedAdmissionRank": school_items[nearest_index]["adjustedAdmissionRank"],
+            "rankGap": school_items[nearest_index]["rankGap"],
+        }
+        return selected, landing_school
+
+    def _recommend_for_top_rank(
+        self,
+        school_items: list[dict],
+        student_rank: int,
+        nearest_index: int,
+    ) -> tuple[dict[str, list[dict]], dict]:
+        reach = school_items[:nearest_index]
+        target_end = min(max(nearest_index + 4, 4), len(school_items))
+        target = school_items[nearest_index:target_end]
+        safety = school_items[target_end : min(target_end + 2, len(school_items))]
+        selected = {"reach": reach[:3], "target": target, "safety": safety}
+
+        for category, schools in selected.items():
+            for school in schools:
+                school["category"] = self._category_label(category)
+                school["probability"] = self._sequence_probability(category, school["rankGap"])
+                school["stars"] = self._stars(school["probability"])
+                school["reason"] = self._sequence_reason(
+                    category,
+                    student_rank,
+                    school["schoolName"],
+                    school["admissionRank"],
+                    school["adjustedAdmissionRank"],
+                    school["rankGap"],
+                    school["structureAdjustment"],
+                    school["referenceYear"],
+                )
+
+        landing_school = {
+            "schoolId": school_items[nearest_index]["schoolId"],
+            "schoolName": school_items[nearest_index]["schoolName"],
+            "adjustedAdmissionRank": school_items[nearest_index]["adjustedAdmissionRank"],
+            "rankGap": school_items[nearest_index]["rankGap"],
+        }
+        return selected, landing_school
+
+    def _group_counts(self, total: int) -> dict[str, int]:
+        if total >= 10:
+            return {"reach": 3, "target": 4, "safety": 3}
+        if total <= 0:
+            return {"reach": 0, "target": 0, "safety": 0}
+        if total == 1:
+            return {"reach": 0, "target": 1, "safety": 0}
+        if total == 2:
+            return {"reach": 1, "target": 1, "safety": 0}
+        if total == 3:
+            return {"reach": 1, "target": 1, "safety": 1}
+        if total == 4:
+            return {"reach": 1, "target": 2, "safety": 1}
+        if total == 5:
+            return {"reach": 1, "target": 2, "safety": 2}
+        if total == 6:
+            return {"reach": 2, "target": 2, "safety": 2}
+        if total == 7:
+            return {"reach": 2, "target": 3, "safety": 2}
+        if total == 8:
+            return {"reach": 3, "target": 3, "safety": 2}
+        return {"reach": 3, "target": 4, "safety": 2}
+
     def _rank_influence(self, rank: int, start: int, full: int, end: int) -> float:
         if rank < start:
             return 0.0
@@ -239,26 +289,13 @@ class PredictionService:
         fade = max(0.0, 1.0 - ((rank - end) / tail))
         return 0.35 * fade
 
-    def _classify_gap(self, gap: int, rule: sqlite3.Row) -> Optional[str]:
-        if rule["reach_min_gap"] <= gap <= rule["reach_max_gap"]:
-            return "reach"
-        if rule["target_min_gap"] <= gap <= rule["target_max_gap"]:
-            return "target"
-        if gap <= rule["safety_max_gap"]:
-            return "safety"
-        return None
-
-    def _probability(self, category: str, gap: int, rule: sqlite3.Row) -> int:
+    def _sequence_probability(self, category: str, gap: int) -> int:
+        distance = min(abs(gap), 3000)
         if category == "reach":
-            span = max(1, rule["reach_max_gap"] - rule["reach_min_gap"])
-            progress = (gap - rule["reach_min_gap"]) / span
-            return round(60 - progress * 25)
+            return max(35, round(62 - distance / 3000 * 18))
         if category == "target":
-            span = max(1, rule["target_max_gap"] - rule["target_min_gap"])
-            progress = (gap - rule["target_min_gap"]) / span
-            return round(85 - progress * 10)
-        safety_depth = min(abs(gap - rule["safety_max_gap"]), 2000)
-        return round(88 + (safety_depth / 2000) * 8)
+            return max(68, round(86 - distance / 3000 * 10))
+        return min(96, round(88 + distance / 3000 * 8))
 
     def _stars(self, probability: int) -> int:
         if probability >= 90:
@@ -271,7 +308,7 @@ class PredictionService:
             return 2
         return 1
 
-    def _reason(
+    def _sequence_reason(
         self,
         category: str,
         student_rank: int,
@@ -284,27 +321,23 @@ class PredictionService:
     ) -> str:
         adjustment_text = ""
         if adjustment > 0:
-            adjustment_text = f"；考虑2026新增/扩建学位后，参考位次修正为约 {adjusted_rank}"
+            adjustment_text = f"；考虑2026新增/扩建学位后，参考位次约 {adjusted_rank}"
+        relation = f"靠后 {gap} 名" if gap > 0 else f"领先 {abs(gap)} 名"
+        if gap == 0:
+            relation = "基本持平"
         if category == "reach":
-            return f"你的位次约 {student_rank}，{year} 年{school_name}录取位次约 {school_rank}{adjustment_text}，当前靠后 {gap} 名，属于有机会但存在风险的冲刺选择。"
+            return f"按录取位次序列看，{school_name}位于你的落位学校上方；你的位次约 {student_rank}，{year} 年该校录取位次约 {school_rank}{adjustment_text}，当前{relation}，作为冲刺参考。"
         if category == "target":
-            ahead = abs(gap)
-            return f"你的位次约 {student_rank}，{year} 年{school_name}录取位次约 {school_rank}{adjustment_text}，当前领先 {ahead} 名，接近录取线，属于相对稳妥的选择。"
-        ahead = abs(gap)
-        return f"你的位次约 {student_rank}，明显优于 {year} 年{school_name}录取位次 {school_rank}{adjustment_text}，领先约 {ahead} 名，录取把握较高。"
+            return f"按录取位次序列看，{school_name}接近你的落位区间；你的位次约 {student_rank}，{year} 年该校录取位次约 {school_rank}{adjustment_text}，当前{relation}，作为稳妥参考。"
+        return f"按录取位次序列看，{school_name}位于落位区间下方；你的位次约 {student_rank}，{year} 年该校录取位次约 {school_rank}{adjustment_text}，当前{relation}，作为保底参考。"
 
     def _category_label(self, category: str) -> str:
         return {"reach": "冲", "target": "稳", "safety": "保"}[category]
 
     def _summary(self, groups: dict[str, list[dict]]) -> str:
-        if groups["target"]:
-            return "较稳"
-        if groups["reach"] and groups["safety"]:
-            return "有冲有保"
-        if groups["safety"]:
-            return "整体稳妥"
-        if groups["reach"]:
-            return "偏冲刺"
+        total = sum(len(items) for items in groups.values())
+        if total == 10:
+            return "已生成 10 所推荐"
         return "暂无匹配推荐"
 
     def _summarize_structure_changes(self, changes: list[sqlite3.Row]) -> list[dict]:

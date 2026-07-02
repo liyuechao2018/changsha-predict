@@ -11,6 +11,7 @@ launcher/obj/
 logs/*.log
 logs/*.log.*
 *.log
+tmp/
 
 .env
 data/*.db

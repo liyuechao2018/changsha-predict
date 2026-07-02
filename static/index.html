@@ -8,20 +8,28 @@
   </head>
   <body>
     <main class="page">
+      <div class="blessing">祝大家查分顺利，一飞冲天，未来可期！</div>
+
       <section class="predictor">
         <div class="intro">
           <p class="eyebrow">长沙中考录取预测</p>
-          <h1>输入成绩，查看冲稳保学校</h1>
+          <h1>输入位次，查看冲稳保学校</h1>
+          <div class="disclaimer" role="note">
+            <strong>重要提示</strong>
+            <p>
+              本工具仅根据已录入的历史录取位次、招生变化和当前规则生成志愿参考，不代表官方录取结果，也不构成任何录取承诺。实际录取会受到当年招生计划、志愿填报热度、政策调整、指标生等因素影响，请以长沙市教育局及学校最终公布信息为准。
+            </p>
+          </div>
         </div>
 
         <form id="predictionForm" class="form">
           <label>
-            <span>中考总分</span>
-            <input id="score" name="score" type="number" min="1" max="700" step="1" required placeholder="例如 636" />
+            <span>中考总分（可选）</span>
+            <input id="score" name="score" type="number" min="1" max="630" step="1" placeholder="仅用于记录，不参与推荐" />
           </label>
           <label>
-            <span>已有位次（可选）</span>
-            <input id="rank" name="rank" type="number" min="1" step="1" placeholder="有两分一段位次时填写" />
+            <span>位次</span>
+            <input id="rank" name="rank" type="number" min="1" step="1" required placeholder="例如 6881" />
           </label>
           <label>
             <span>综合素质</span>

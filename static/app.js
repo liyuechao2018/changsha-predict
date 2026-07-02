@@ -1,5 +1,7 @@
 const form = document.querySelector("#predictionForm");
 const result = document.querySelector("#result");
+const scoreInput = document.querySelector("#score");
+const rankInput = document.querySelector("#rank");
 
 const groupTitles = {
   reach: "冲",
@@ -14,8 +16,8 @@ form.addEventListener("submit", async (event) => {
 
   const payload = {
     year: 2026,
-    score: Number(document.querySelector("#score").value),
-    rank: document.querySelector("#rank").value,
+    score: scoreInput.value ? Number(scoreInput.value) : null,
+    rank: rankInput.value,
     qualityLevel: document.querySelector("#qualityLevel").value,
   };
 
@@ -61,12 +63,6 @@ function renderResult(data) {
         <strong>${escapeHtml(student.summary)}</strong>
       </div>
       <p>${escapeHtml(student.rankSource)}</p>
-    </section>
-    <section class="rules">
-      <span>冲：${data.rule.reach}</span>
-      <span>稳：${data.rule.target}</span>
-      <span>保：${data.rule.safety}</span>
-      <span>已考虑2026新增/扩建学位</span>
     </section>
     ${cards}
   `;

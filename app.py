@@ -46,14 +46,11 @@ class AppHandler(BaseHTTPRequestHandler):
             payload = self._read_json()
             request = PredictionRequest(
                 year=int(payload.get("year") or 2026),
-                score=float(payload["score"]),
+                score=float(payload.get("score") or 0),
                 quality_level=str(payload.get("qualityLevel") or "未填写"),
                 rank=int(payload["rank"]) if payload.get("rank") not in (None, "") else None,
             )
             result = self.service.predict(request)
-        except KeyError:
-            self._json({"error": "请填写中考总分。"}, status=400)
-            return
         except ValueError as exc:
             self._json({"error": str(exc)}, status=400)
             return

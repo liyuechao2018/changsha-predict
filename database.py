@@ -303,7 +303,14 @@ def seed_defaults(conn: sqlite3.Connection) -> None:
         """
         INSERT OR IGNORE INTO year_configs
         (year, is_current, total_score, admission_data_year, ranking_table_ready, admission_data_ready)
-        VALUES (2026, 1, 700, 2025, 0, 1)
+        VALUES (2026, 1, 630, 2025, 0, 1)
+        """
+    )
+    conn.execute(
+        """
+        UPDATE year_configs
+        SET total_score = 630, admission_data_year = 2025, admission_data_ready = 1
+        WHERE year = 2026
         """
     )
 
