@@ -48,6 +48,7 @@ class PredictionSequenceTests(unittest.TestCase):
         self.assertEqual(len(result["groups"]["reach"]), 0)
         self.assertGreaterEqual(len(result["groups"]["target"]), 1)
         self.assertLess(sum(len(group) for group in result["groups"].values()), 10)
+        self.assertIn("已生成", result["student"]["summary"])
         self.assert_no_duplicate_schools(result)
 
     def test_late_rank_still_returns_fixed_counts_without_duplicates(self) -> None:

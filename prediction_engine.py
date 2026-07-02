@@ -453,8 +453,8 @@ class PredictionService:
 
     def _summary(self, groups: dict[str, list[dict]]) -> str:
         total = sum(len(items) for items in groups.values())
-        if total == 10:
-            return "已生成 10 所推荐"
+        if total > 0:
+            return f"已生成 {total} 所推荐"
         return "暂无匹配推荐"
 
     def _summarize_structure_changes(self, changes: list[sqlite3.Row]) -> list[dict]:
