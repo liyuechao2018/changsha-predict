@@ -93,6 +93,22 @@ label {
   color: #53616a;
 }
 
+.ranking-hint {
+  grid-column: 1 / -1;
+  margin: -4px 0 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #eef4f5;
+  color: #40515b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ranking-hint.warning {
+  background: #fff8f1;
+  color: #7b4a28;
+}
+
 input,
 select,
 button {

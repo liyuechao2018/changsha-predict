@@ -99,6 +99,25 @@ class PredictionSequenceTests(unittest.TestCase):
         ]
         self.assertEqual(low_score_schools, high_score_schools)
 
+    def test_no_quota_score_ranking_lookup_uses_2026_table(self) -> None:
+        result = self.service.lookup_ranking(year=2026, score=593)
+
+        self.assertTrue(result["found"])
+        self.assertEqual(result["rank"], 1503)
+        self.assertEqual(result["rankSource"], "2026不含指标生一分一段表")
+
+    def test_score_ranking_lookup_uses_corrected_515_cumulative_rank(self) -> None:
+        result = self.service.lookup_ranking(year=2026, score=515)
+
+        self.assertTrue(result["found"])
+        self.assertEqual(result["rank"], 29866)
+
+    def test_score_ranking_lookup_reports_uncovered_score(self) -> None:
+        result = self.service.lookup_ranking(year=2026, score=511)
+
+        self.assertFalse(result["found"])
+        self.assertIn("暂未覆盖", result["message"])
+
     def test_changjun_new_campus_uses_half_seat_release(self) -> None:
         result = self.service.predict(
             PredictionRequest(year=2026, score=0, quality_level="5A", rank=2600)

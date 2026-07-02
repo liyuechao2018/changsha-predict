@@ -18,6 +18,68 @@ class PredictionService:
     def __init__(self, db_path: Path):
         self.db_path = db_path
 
+    def lookup_ranking(self, year: int, score: float | None = None, rank: int | None = None) -> dict:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            if score is not None:
+                row = conn.execute(
+                    """
+                    SELECT score, cumulative_count, source_type
+                    FROM score_rankings
+                    WHERE year = ? AND score = ?
+                    """,
+                    (year, score),
+                ).fetchone()
+                if row is None:
+                    return {
+                        "found": False,
+                        "year": year,
+                        "score": score,
+                        "message": "当前一分一段表暂未覆盖该分数，请手动填写位次。",
+                    }
+                return {
+                    "found": True,
+                    "year": year,
+                    "score": row["score"],
+                    "rank": row["cumulative_count"],
+                    "sourceType": row["source_type"],
+                    "rankSource": "2026不含指标生一分一段表",
+                }
+
+            if rank is not None:
+                row = conn.execute(
+                    """
+                    SELECT score, cumulative_count, source_type
+                    FROM score_rankings
+                    WHERE year = ? AND cumulative_count >= ?
+                    ORDER BY score DESC
+                    LIMIT 1
+                    """,
+                    (year, rank),
+                ).fetchone()
+                if row is None:
+                    return {
+                        "found": False,
+                        "year": year,
+                        "rank": rank,
+                        "message": "当前一分一段表暂未覆盖该位次，请以手动填写为准。",
+                    }
+                return {
+                    "found": True,
+                    "year": year,
+                    "score": row["score"],
+                    "rank": rank,
+                    "cumulativeRank": row["cumulative_count"],
+                    "sourceType": row["source_type"],
+                    "rankSource": "2026不含指标生一分一段表",
+                }
+
+        return {
+            "found": False,
+            "year": year,
+            "message": "请填写分数或位次。",
+        }
+
     def predict(self, request: PredictionRequest) -> dict:
         if request.rank is None or request.rank <= 0:
             raise ValueError("请填写有效位次。")

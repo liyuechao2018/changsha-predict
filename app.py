@@ -5,7 +5,7 @@ import logging
 import mimetypes
 from logging.handlers import RotatingFileHandler
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from config import AppConfig
 from database import initialize_database
@@ -32,6 +32,9 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/health":
             self._json({"ok": True})
+            return
+        if path == "/api/rankings/lookup":
+            self._handle_ranking_lookup(parsed.query)
             return
         self._not_found()
 
@@ -60,6 +63,21 @@ class AppHandler(BaseHTTPRequestHandler):
             return
 
         self._json(result)
+
+    def _handle_ranking_lookup(self, query: str) -> None:
+        try:
+            params = parse_qs(query)
+            year = int(params.get("year", ["2026"])[0] or 2026)
+            score_value = params.get("score", [None])[0]
+            rank_value = params.get("rank", [None])[0]
+            score = float(score_value) if score_value not in (None, "") else None
+            rank = int(rank_value) if rank_value not in (None, "") else None
+            if score is None and rank is None:
+                self._json({"error": "请填写分数或位次"}, status=400)
+                return
+            self._json(self.service.lookup_ranking(year, score=score, rank=rank))
+        except ValueError as exc:
+            self._json({"error": f"参数格式不正确：{exc}"}, status=400)
 
     def _read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))

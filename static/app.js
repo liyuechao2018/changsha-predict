@@ -2,6 +2,7 @@ const form = document.querySelector("#predictionForm");
 const result = document.querySelector("#result");
 const scoreInput = document.querySelector("#score");
 const rankInput = document.querySelector("#rank");
+const rankingHint = document.querySelector("#rankingHint");
 
 const groupTitles = {
   reach: "冲",
@@ -9,15 +10,48 @@ const groupTitles = {
   safety: "保",
 };
 
+scoreInput.addEventListener("input", async () => {
+  const score = Number(scoreInput.value);
+  if (!scoreInput.value) {
+    setRankingHint("自动换算使用2026不含指标生一分一段表；推荐仍以位次为准。");
+    return;
+  }
+  if (!Number.isInteger(score)) {
+    setRankingHint("请输入整数分数。", true);
+    return;
+  }
+
+  try {
+    const response = await fetch(`${getBasePath()}/api/rankings/lookup?year=2026&score=${score}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "位次查询失败");
+    }
+    if (!data.found) {
+      setRankingHint(data.message || "当前分数暂未覆盖，请手动填写位次。", true);
+      return;
+    }
+    rankInput.value = data.rank;
+    setRankingHint(`${score}分对应不含指标生累计位次约 ${Number(data.rank).toLocaleString()} 名。`);
+  } catch (error) {
+    setRankingHint(error.message, true);
+  }
+});
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!rankInput.value) {
+    result.classList.remove("hidden");
+    result.innerHTML = `<div class="notice error">请填写位次；如果只填分数，请确认该分数已被一分一段表覆盖并自动带出位次。</div>`;
+    return;
+  }
   result.classList.remove("hidden");
   result.innerHTML = `<div class="notice">正在预测...</div>`;
 
   const payload = {
     year: 2026,
     score: scoreInput.value ? Number(scoreInput.value) : null,
-    rank: rankInput.value,
+    rank: Number(rankInput.value),
     qualityLevel: document.querySelector("#qualityLevel").value,
   };
 
@@ -40,6 +74,11 @@ form.addEventListener("submit", async (event) => {
 function getBasePath() {
   const path = window.location.pathname;
   return path.startsWith("/predict") ? "/predict" : "";
+}
+
+function setRankingHint(message, warning = false) {
+  rankingHint.textContent = message;
+  rankingHint.classList.toggle("warning", warning);
 }
 
 function renderResult(data) {

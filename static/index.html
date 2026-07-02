@@ -25,12 +25,13 @@
         <form id="predictionForm" class="form">
           <label>
             <span>中考总分（可选）</span>
-            <input id="score" name="score" type="number" min="1" max="630" step="1" placeholder="仅用于记录，不参与推荐" />
+            <input id="score" name="score" type="number" min="1" max="630" step="1" placeholder="输入分数自动换算位次" />
           </label>
           <label>
             <span>位次</span>
-            <input id="rank" name="rank" type="number" min="1" step="1" required placeholder="例如 6881" />
+            <input id="rank" name="rank" type="number" min="1" step="1" placeholder="例如 6881" />
           </label>
+          <p id="rankingHint" class="ranking-hint">自动换算使用2026不含指标生一分一段表；推荐仍以位次为准。</p>
           <label>
             <span>综合素质</span>
             <select id="qualityLevel" name="qualityLevel">
