@@ -32,6 +32,18 @@ body {
   box-shadow: 0 10px 24px rgba(22, 95, 115, 0.16);
 }
 
+.author-note {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 1px solid #dbe3e7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #40515b;
+  font-size: 15px;
+  line-height: 1.7;
+  text-align: center;
+}
+
 .predictor {
   display: grid;
   grid-template-columns: minmax(220px, 0.85fr) minmax(320px, 1.15fr);
@@ -326,5 +338,11 @@ dd {
   .blessing {
     padding: 12px 14px;
     font-size: 16px;
+  }
+
+  .author-note {
+    padding: 11px 12px;
+    font-size: 14px;
+    text-align: left;
   }
 }
